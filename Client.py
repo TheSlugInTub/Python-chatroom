@@ -1,8 +1,13 @@
 import socket
+import sys
+import select
+
+hostname = socket.gethostname()
+IP = socket.gethostbyname(hostname)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-client.connect(("localhost", 9999))
+client.connect((IP, 9999))
 
 done = False
 
