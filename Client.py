@@ -1,60 +1,68 @@
-import socket
-import select
-import errno
+from socket import AF_INET, socket, SOCK_STREAM
+from threading import Thread
+import tkinter
 
-HEADER_LENGTH = 10
 
-IP = "192.168.0.102"
-PORT = 9999
-my_username = input("Username: ")
+def receive():
+    """Handles receiving of messages."""
+    while True:
+        try:
+            msg = client_socket.recv(BUFSIZ).decode("utf8")
+            msg_list.insert(tkinter.END, msg)
+        except OSError:  
+            break
 
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-client_socket.connect((IP, PORT))
+def send(event=None):  
+    """Handles sending of messages."""
+    msg = my_msg.get()
+    my_msg.set("")  
+    client_socket.send(bytes(msg, "utf8"))
+    if msg == "{quit}":
+        client_socket.close()
+        top.quit()
 
-client_socket.setblocking(False)
 
-username = my_username.encode('utf-8')
-username_header = f"{len(username):<{HEADER_LENGTH}}".encode('utf-8')
-client_socket.send(username_header + username)
+def on_closing(event=None):
+    """This function is to be called when the window is closed."""
+    my_msg.set("{quit}")
+    send()
 
-while True:
+top = tkinter.Tk()
+top.title("Chatter")
 
-    # Wait for user to input a message
-    message = input(f'{my_username} > ')
+messages_frame = tkinter.Frame(top)
+my_msg = tkinter.StringVar()  # For the messages to be sent.
+my_msg.set(" ")
+scrollbar = tkinter.Scrollbar(messages_frame)  # To navigate through past messages.
+msg_list = tkinter.Listbox(messages_frame, height=15, width=50, yscrollcommand=scrollbar.set)
+scrollbar.pack(side=tkinter.RIGHT, fill=tkinter.Y)
+msg_list.pack(side=tkinter.LEFT, fill=tkinter.BOTH)
+msg_list.pack(fill=tkinter.BOTH, expand=tkinter.YES)
+messages_frame.pack(fill=tkinter.BOTH, expand=tkinter.YES)
 
-    if message:
+entry_field = tkinter.Entry(top, textvariable=my_msg)
+entry_field.bind("<Return>", send)
+entry_field.pack(fill=tkinter.BOTH, expand=tkinter.YES)
+send_button = tkinter.Button(top, text="Send", command=send)
+send_button.pack(fill=tkinter.BOTH, expand=tkinter.YES)
 
-        message = message.encode('utf-8')
-        message_header = f"{len(message):<{HEADER_LENGTH}}".encode('utf-8')
-        client_socket.send(message_header + message)
+top.protocol("WM_DELETE_WINDOW", on_closing)
 
-    try:
-        while True:
+#-SOCKETS----
+HOST = input('Enter host: ')
+PORT = input('Enter port: ')
+if not PORT:
+    PORT = 9999
+else:
+    PORT = int(PORT)
 
-            username_header = client_socket.recv(HEADER_LENGTH)
+BUFSIZ = 1024
+ADDR = (HOST, PORT)
 
-            if not len(username_header):
-                print('Connection closed by the server')
-                sys.exit()
+client_socket = socket(AF_INET, SOCK_STREAM)
+client_socket.connect(ADDR)
 
-            username_length = int(username_header.decode('utf-8').strip())
-
-            username = client_socket.recv(username_length).decode('utf-8')
-
-            message_header = client_socket.recv(HEADER_LENGTH)
-            message_length = int(message_header.decode('utf-8').strip())
-            message = client_socket.recv(message_length).decode('utf-8')
-
-            print(f'{username} > {message}')
-
-    except IOError as e:
-        if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
-            print('Reading error: {}'.format(str(e)))
-            sys.exit()
-
-        continue
-
-    except Exception as e:
-        print('Reading error: '.format(str(e)))
-        sys.exit()
+receive_thread = Thread(target=receive)
+receive_thread.start()
+tkinter.mainloop() 
